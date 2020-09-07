@@ -1,0 +1,21 @@
+#!/bin/bash
+
+
+echo "Downloading minikube ..."
+curl -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64 && chmod +x minikube
+
+echo "Installing minikube bin ..."
+sudo mkdir -p /usr/local/bin/
+sudo install minikube /usr/local/bin/
+
+echo "Installing conntrack ..."
+sudo apt-get install conntrack -y
+
+echo "Create minikube driver"
+sudo -E minikube start --driver=none
+sudo minikube config set driver none
+
+
+USER="ubuntu"
+echo "Change owner kube and minikube ...."
+sudo chown -R $USER $HOME/.kube $HOME/.minikube

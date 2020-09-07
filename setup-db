@@ -1,0 +1,49 @@
+#!/bin/bash
+
+
+# Setup config.php with env 
+env="/home/ubuntu/Desktop/latihan-docker/docker-php-fpm/code/env"
+new_user=`cat $env | grep -E "DB_USER" | awk '{print$3}'`
+new_host=`cat $env | grep -E "DB_HOST" | awk '{print$3}'`
+new_pass=`cat $env | grep -E "DB_PASS" | awk '{print$3}'`
+new_db=`cat $env | grep -E "DB_NAME" | awk '{print$3}'`
+
+conf="/home/ubuntu/Desktop/latihan-docker/code/config.php"
+user=`cat $conf | grep -E "[$]db_user " | awk '{print$3}' | sed 's/[";]//g'`
+host=`cat $conf | grep -E "[$]db_host " | awk '{print$3}' | sed 's/[";]//g'`
+pass=`cat $conf | grep -E "[$]db_pass " | awk '{print$3}' | sed 's/[";]//g'`
+db=`cat $conf | grep -E "[$]db_name " | awk '{print$3}' | sed 's/[";]//g'`
+
+sed -i "s/$user/$new_user/" $conf
+sed -i "s/$host/$new_host/" $conf
+sed -i "s/$pass/$new_pass/" $conf
+sed -i "s/$db/$new_db/" $conf
+
+
+# Create user database
+echo "Create user $new_user..."
+sudo mysql -u root << EOF
+create user '$new_user'@'$new_host' identified by '$new_pass';
+grant all privileges on *.* to '$new_user'@'$new_host';
+EOF
+
+
+# Create database based on config.php
+oldDb=`sudo ls /var/lib/mysql | grep $new_db
+
+if [[ $new_db != $oldDb ]]; then
+
+        echo "Create database $new_db..."
+        sudo mysql -u $new_user -p$new_pass <<EOF
+        create database $new_db;
+EOF
+
+        sudo mysql -u $new_user -p$new_pass $new_db < /var/www/html/app-sosmed-master/app/dump.sql
+
+        echo "$new_db has been succesfully created!"
+
+else
+
+        echo "$new_db has existed!"
+
+fi

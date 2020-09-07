@@ -1,0 +1,95 @@
+#!/bin/bash
+
+echo "Installing nginx ..."
+apt-get update
+apt-get install -y nginx
+
+
+# Get sosmed app
+echo "Installing unzip ..."
+apt-get install unzip
+
+echo "Setup nginx ..."
+sudo unlink /etc/nginx/sites-enabled/default
+
+
+# Configure nginx to application
+cat > /etc/nginx/sites-available/redbook << EOF
+server {
+        listen 80;
+	listen 443;
+        root /var/www/html/app-sosmed;
+        index index.php index.html index.htm index.nginx-debian.html;
+        server_name sosmed.net;
+
+        location / {
+                try_files \$uri \$uri/ =404;
+        }
+
+        location ~ \.php$ {
+                include snippets/fastcgi-php.conf;
+                fastcgi_pass unix:/var/run/php/php7.2-fpm.sock;
+        }
+
+        location ~ /\.ht {
+                deny all;
+        }
+}
+EOF
+
+sudo ln -s /etc/nginx/sites-available/redbook /etc/nginx/sites-enabled/
+sudo systemctl reload nginx
+
+echo "Installing php-fpm php-mysql mysql-server ..."
+apt-get install -y php-fpm php-mysql mysql-server
+
+
+# Mounting S3 to instance
+echo "Installing depedency S3 ..."
+sudo apt update
+sudo apt install -y automake autotools-dev fuse g++ git libcurl4-gnutls-dev libfuse-dev libssl-dev libxml2-dev make pkg-config
+git clone https://github.com/s3fs-fuse/s3fs-fuse.git
+
+echo "Installing s3fs ..."
+cd s3fs-fuse
+sudo ./autogen.sh
+sudo ./configure --prefix=/usr --with-openssl
+make
+sudo make install
+sudo apt install s3fs
+
+sudo cat /home/ubuntu/bash/rootkey.csv > /etc/passwd-s3fs
+
+sudo chmod 640 /etc/passwd-s3fs
+
+echo "Installing mys3bucket ..."
+sudo mkdir -p /mys3bucket/app-sosmed
+bucket_name='pesbook.renard.my.id'
+s3fs $bucket_name /mys3bucket/app-sosmed -o use_cache=/tmp -o allow_other -o uid=1001 -o mp_umask=002 -o multireq_max=5 -o use_path_request_style -o url=https://s3-ap-southeast-1.amazonaws.com
+
+sudo echo s3fs $bucket_name /mys3bucket/app-sosmed -o use_cache=/tmp -o allow_other -o uid=1001 -o mp_umask=002 -o multireq_max=5 -o use_path_request_style -o url=https://s3-ap-southeast-1.amazonaws.com > /etc/rc.local
+
+
+# Installing app sosmed
+echo "Installing app sosmed ..."
+sudo chmod -Rf +rwx /mys3bucket/app-sosmed/*
+sudo cp -r /mys3bucket/app-sosmed /var/www/html
+
+
+# Setup config.php with env 
+env="/home/ubuntu/bash/env"
+new_user=`cat $env | grep -E "DB_USER" | awk '{print$3}'`
+new_host=`cat $env | grep -E "DB_HOST" | awk '{print$3}'`
+new_pass=`cat $env | grep -E "DB_PASS" | awk '{print$3}'`
+new_db=`cat $env | grep -E "DB_NAME" | awk '{print$3}'`
+
+loc="/var/www/html/app-sosmed/config.php"
+user=`cat $loc | grep -E "[$]db_user " | awk '{print$3}' | sed 's/[";]//g'`
+host=`cat $loc | grep -E "[$]db_host " | awk '{print$3}' | sed 's/[";]//g'`
+pass=`cat $loc | grep -E "[$]db_pass " | awk '{print$3}' | sed 's/[";]//g'`
+db=`cat $loc | grep -E "[$]db_name " | awk '{print$3}' | sed 's/[";]//g'`
+
+sed -i "s/$user/$new_user/" $loc
+sed -i "s/$host/$new_host/" $loc
+sed -i "s/$pass/$new_pass/" $loc
+sed -i "s/$db/$new_db/" $loc

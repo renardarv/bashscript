@@ -1,0 +1,64 @@
+#!/bin/bash
+
+# Bash for Instalation nginx, php-fpm, mysql, database dan application web sosmed
+
+echo "Installing nginx ..."
+apt-get update
+apt-get install -y nginx 
+
+
+# Get sosmed app
+echo "Installing unzip ..."
+apt-get install unzip
+echo "Get sosmed app master ..."
+wget -P /home/ubuntu https://github.com/renardarv/app-sosmed/archive/master.zip
+unzip /home/ubuntu/master.zip -d /home/ubuntu
+
+echo "Setup nginx ..."
+sudo unlink /etc/nginx/sites-enabled/default
+sudo cp /home/ubuntu/app-sosmed-master/nginx-sosmed /etc/nginx/sites-available
+sudo ln -s /etc/nginx/sites-available/nginx-sosmed /etc/nginx/sites-enabled/
+sudo systemctl reload nginx
+
+echo "Installing php-fpm php-mysql mysql-server ..."
+apt-get install -y php-fpm php-mysql mysql-server
+
+echo "Installing app sosmed ..."
+from="/home/ubuntu/app-sosmed-master"
+sudo cp -r $from /var/www/html
+sudo cp $from/bash/{create-mysql-user,createdb-mysql} /bin
+
+
+# Create user mysql based on config.php
+loc="$from/app"
+user=`cat $loc/config.php | grep -E "[$]db_user " | awk '{print$3}' | sed 's/[";]//g'`
+host=`cat $loc/config.php | grep -E "[$]db_host " | awk '{print$3}' | sed 's/[";]//g'`
+pass=`cat $loc/config.php | grep -E "[$]db_pass " | awk '{print$3}' | sed 's/[";]//g'`
+db=`cat $loc/config.php | grep -E "[$]db_name " | awk '{print$3}' | sed 's/[";]//g'`
+
+echo "Create user $user..."
+sudo mysql -u root << EOF
+create user '$user'@'$host' identified by '$pass';
+grant all privileges on *.* to '$user'@'$host';
+EOF
+
+
+# Create database basen on config.php
+oldDb=`sudo ls /var/lib/mysql | grep $db`
+
+if [[ $db != $oldDb ]]; then
+
+        echo "Create database $db..."
+        sudo mysql -u $user -p$pass <<EOF
+        create database $db;
+EOF
+
+        sudo mysql -u $user -p$pass $db < /var/www/html/app-sosmed-master/app/dump.sql
+
+        echo "$db has been succesfully created!"
+
+else
+
+        echo "$db has existed!"
+
+fi

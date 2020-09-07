@@ -1,0 +1,9 @@
+<?php
+
+DB_USER = root 
+DB_HOST = db-gawaii.cz1ncoptldbq.ap-southeast-1.rds.amazonaws.com 
+DB_PASS = test12345
+DB_NAME = dbsosmed
+
+AWS_ACCESS_KEY = 
+AWS_SECRET_KEY = 

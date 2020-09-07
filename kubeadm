@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# Create host name
+hostnamectl set-hostname master-01
+
+# Generate key
+ssh-keygen -t rsa
+chmod 600 /root/.ssh/id_rsa
+chmod 664 /root/.ssh/id_rsa.pub /root/.ssh/authorized_keys
+
+# Install docker
+apt autoremove -y
+apt-get update && apt-get install apt-transport-https ca-certificates curl
+software-properties-common -y
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+add-apt-repository \
+"deb [arch=amd64] https://download.docker.com/linux/ubuntu \
+$(lsb_release -cs) \
+stable"
+sudo apt-get update && sudo apt-get install docker-ce=18.06.2~ce~3-0~ubuntu -y
+cat > /etc/docker/daemon.json <<EOF
+{
+"exec-opts": ["native.cgroupdriver=systemd"],
+"log-driver": "json-file",
+"log-opts": {
+"max-size": "100m"
+},
+"storage-driver": "overlay2"
+}
+EOF
+mkdir -p /etc/systemd/system/docker.service.d
+systemctl daemon-reload
+systemctl restart docker
+usermod -aG docker ubuntu
+
+# Install kubetool
+dpkg-reconfigure tzdata
+apt-get update && apt-get install -y apt-transport-https curl
+curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+cat <<EOF >/etc/apt/sources.list.d/kubernetes.list 
+deb https://apt.kubernetes.io/ kubernetes-xenial main
+EOF
+apt-get update
+apt-get install -y kubelet kubeadm kubectl nfs-client
+apt-mark hold kubelet kubeadm kubectl
+# for turn off swap because kubernetes cannot accept swap
+swapoff -a
+sed -i '/ swap / s/^/#/' /etc/fstab
+exit

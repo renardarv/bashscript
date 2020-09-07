@@ -1,0 +1,14 @@
+#!/bin/bash
+
+export bucket_name=kube-latihan
+export KOPS_CLUSTER_NAME=k8s.renard.my.id
+export KOPS_STATE_STORE=s3://${bucket_name}
+
+kops create cluster \
+--node-count=2 \
+--node-size=t2.medium \
+--zones=ap-southeast-1a \
+--name=${KOPS_CLUSTER_NAME} \
+--ssh-public-key=~/.ssh/id_rsa.pub
+
+kops update cluster --name ${KOPS_CLUSTER_NAME} --yes
